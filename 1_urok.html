@@ -1,0 +1,278 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Проверка таблицы умножения</title>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --fg:#1f2430; --muted:#5f6675;
+  --accent:#2f6fdb; --accent-fg:#ffffff; --ok:#17803f; --bad:#c53b3b;
+  --line:#e2dfd6; --dot:#d9d5ca;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171f; --card:#1d222d; --fg:#eef0f5; --muted:#9aa2b2;
+    --accent:#6ea2ff; --accent-fg:#0d1220; --ok:#4cd17f; --bad:#ff7b7b;
+    --line:#2c3342; --dot:#3a4254; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171f; --card:#1d222d; --fg:#eef0f5; --muted:#9aa2b2;
+  --accent:#6ea2ff; --accent-fg:#0d1220; --ok:#4cd17f; --bad:#ff7b7b;
+  --line:#2c3342; --dot:#3a4254; color-scheme:dark;
+}
+body{
+  background:var(--bg); color:var(--fg); margin:0;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  line-height:1.45; padding-block:24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:420px;margin:0 auto}
+h1{font-size:22px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px;margin-bottom:12px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;justify-content:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dot)}
+.dot.done{background:var(--accent)}
+.dot.now{outline:2px solid var(--accent);outline-offset:2px}
+.q{font-size:40px;font-weight:700;text-align:center;margin:16px 0 18px;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px}
+input{flex:1;min-width:0;font:inherit;font-size:24px;text-align:center;padding:10px;
+  border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+input:focus-visible{outline:none;border-color:var(--accent)}
+input:disabled{opacity:.6}
+button.primary,button.ghost{font:inherit;font-weight:600;border-radius:10px;padding:12px 18px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-fg);border:0}
+button.ghost{background:var(--card);color:var(--fg);border:1px solid var(--line)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.fb{min-height:28px;margin-top:14px;text-align:center;font-size:16px}
+.fb.ok{color:var(--ok);font-weight:600}
+.fb.bad{color:var(--bad);font-weight:600}
+.fb.hint{color:var(--fg);font-weight:500}
+.summary{text-align:center}
+.summary .check{width:64px;height:64px;margin:0 auto 8px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;font-weight:700;line-height:64px}
+.summary .big{font-size:48px;font-weight:700;font-variant-numeric:tabular-nums;margin:8px 0}
+.summary .todo{text-align:left;margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.summary .todo ul{margin:8px 0 0;padding-left:20px;font-variant-numeric:tabular-nums}
+.summary .closing{margin-top:16px;font-weight:600}
+.summary .actions{display:flex;justify-content:center;margin-top:16px}
+</style>
+
+<div class="wrap">
+  <h1>Проверка таблицы умножения</h1>
+  <div class="card" id="app"></div>
+</div>
+
+<script>
+// Примеры создаются заново при каждом открытии страницы.
+// Порядок: сначала оба множителя от 2 до 5, потом один от 2 до 5 и второй от 6 до 9,
+// в конце оба от 6 до 9. Одна и та же пара в одной проверке не повторяется.
+// После первой ошибки показывается подсказка-приём. После второй правильный ответ
+// показывается, а пример возвращается в конец проверки (не больше двух раз).
+const MAX_REPEATS = 2;
+
+const GROUPS = {
+  A: "множители 2–5",
+  M: "смешанные (2–5 и 6–9)",
+  C: "множители 6–9"
+};
+
+function rnd(min, max){ return min + Math.floor(Math.random() * (max - min + 1)); }
+
+function groupOf(a, b){
+  if (a <= 5 && b <= 5) return "A";
+  if (a >= 6 && b >= 6) return "C";
+  return "M";
+}
+
+// Подсказка-приём, которая не называет ответ.
+function hint(a, b){
+  const s = Math.min(a, b), l = Math.max(a, b);
+  if (l === 9) return `${s} × 9 = ${s} × 10 − ${s}`;
+  if (l >= 6)  return `${s} × ${l} = ${s} × 5 + ${s} × ${l - 5}`;
+  return `${s} × ${l} = ${s} × ${l - 1} + ${s}`;
+}
+
+function makeTasks(){
+  const used = new Set();
+  const out = [];
+  function add(gen){
+    for (let t = 0; t < 200; t++){
+      const [a, b] = gen();
+      const key = Math.min(a, b) + "x" + Math.max(a, b);
+      if (!used.has(key)){ used.add(key); out.push([a, b]); return; }
+    }
+  }
+  for (let i = 0; i < 5; i++) add(() => [rnd(2,5), rnd(2,5)]);
+  for (let i = 0; i < 5; i++) add(() => {
+    const small = rnd(2,5), big = rnd(6,9);
+    return Math.random() < 0.5 ? [small, big] : [big, small];
+  });
+  for (let i = 0; i < 5; i++) add(() => [rnd(6,9), rnd(6,9)]);
+  return out;
+}
+
+let queue = [];        // примеры проверки, включая вернувшиеся
+let qi = 0;            // позиция текущего примера в очереди
+let total = 0;         // сколько примеров в исходной проверке
+let firstTry = 0;      // сколько исходных примеров решено сразу без ошибок
+let streak = 0;        // верные ответы подряд
+let missed = [];       // примеры, которые показывались с ответом
+let resolved = new Set(); // номера исходных примеров, с которыми уже закончили
+let groupStats = {};   // по группам: всего и решено сразу
+let wrongOnTask = 0;
+let solved = false;
+
+const app = document.getElementById("app");
+
+function init(){
+  const tasks = makeTasks();
+  total = tasks.length;
+  queue = tasks.map(([a, b], i) => ({ a, b, orig: i, repeat: 0 }));
+  qi = 0; firstTry = 0; streak = 0; missed = []; resolved = new Set();
+  wrongOnTask = 0; solved = false;
+  groupStats = { A: {total: 0, ok: 0}, M: {total: 0, ok: 0}, C: {total: 0, ok: 0} };
+  queue.forEach(it => groupStats[groupOf(it.a, it.b)].total++);
+}
+
+function render(){
+  if (qi < queue.length) renderTask();
+  else renderSummary();
+}
+
+function renderTask(){
+  const item = queue[qi];
+  const label = item.repeat === 0
+    ? `Пример ${item.orig + 1} из ${total}`
+    : `Повторим: пример ${item.orig + 1} из ${total}`;
+  const dots = Array.from({ length: total }, (_, k) =>
+    `<span class="dot ${resolved.has(k) ? "done" : ""} ${k === item.orig ? "now" : ""}"></span>`
+  ).join("");
+  const streakTxt = streak >= 2 ? ` · подряд: ${streak}` : "";
+
+  app.innerHTML = `
+    <div class="meta"><span>${label}</span><span>Верно сразу: ${firstTry}${streakTxt}</span></div>
+    <div class="dots">${dots}</div>
+    <div class="q">${item.a} × ${item.b} = ?</div>
+    <div class="row">
+      <input id="ans" type="number" inputmode="numeric" autocomplete="off" aria-label="Твой ответ">
+      <button class="primary" id="check">Проверить</button>
+    </div>
+    <div class="fb" id="fb" aria-live="polite"></div>`;
+
+  const input = document.getElementById("ans");
+  const btn = document.getElementById("check");
+  const fb = document.getElementById("fb");
+  input.focus();
+
+  const onCheck = () => {
+    if (solved) { next(); return; }
+    const raw = input.value.trim();
+    if (raw === "") {
+      fb.className = "fb bad";
+      fb.textContent = "Напиши ответ.";
+      input.focus();
+      return;
+    }
+    const correct = item.a * item.b;
+
+    if (Number(raw) === correct) {
+      solved = true;
+      if (item.repeat === 0 && wrongOnTask === 0) {
+        firstTry++;
+        groupStats[groupOf(item.a, item.b)].ok++;
+      }
+      streak++;
+      resolved.add(item.orig);
+      fb.className = "fb ok";
+      fb.textContent = "Верно!";
+      input.disabled = true;
+      btn.textContent = "Дальше";
+      btn.focus();
+      return;
+    }
+
+    wrongOnTask++;
+    streak = 0;
+    input.value = "";
+    if (wrongOnTask < 2) {
+      fb.className = "fb bad";
+      fb.textContent = "Неверно. Подсказка: " + hint(item.a, item.b);
+      input.focus();
+      return;
+    }
+
+    // Вторая ошибка: показываем ответ, пример вернётся позже (если есть попытки).
+    solved = true;
+    resolved.add(item.orig);
+    const key = item.a + "x" + item.b;
+    if (!missed.some(m => m.key === key)) {
+      missed.push({ key, text: `${item.a} × ${item.b} = ${correct}` });
+    }
+    let tail = "";
+    if (item.repeat < MAX_REPEATS) {
+      queue.push({ a: item.a, b: item.b, orig: item.orig, repeat: item.repeat + 1 });
+      tail = " Этот пример вернётся позже.";
+    }
+    fb.className = "fb bad";
+    fb.textContent = `Правильный ответ: ${correct}.${tail}`;
+    input.disabled = true;
+    btn.textContent = "Дальше";
+    btn.focus();
+  };
+
+  btn.addEventListener("click", onCheck);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") onCheck(); });
+}
+
+function next(){
+  qi++;
+  wrongOnTask = 0;
+  solved = false;
+  render();
+}
+
+function renderSummary(){
+  const active = Object.keys(groupStats).filter(k => groupStats[k].total > 0);
+  const rows = active.map(k =>
+    `<li>${GROUPS[k]}: ${groupStats[k].ok} из ${groupStats[k].total}</li>`).join("");
+
+  let closing;
+  if (firstTry === total) {
+    closing = "Все решены сразу без ошибок. Отлично!";
+  } else {
+    const weakest = active
+      .map(k => ({ k, r: groupStats[k].ok / groupStats[k].total }))
+      .sort((x, y) => x.r - y.r)[0];
+    closing = `Чаще всего ошибки в группе «${GROUPS[weakest.k]}». Повторим её в следующий раз.`;
+  }
+
+  const missedBlock = missed.length
+    ? `<div class="todo">Повторить:<ul>${missed.map(m => `<li>${m.text}</li>`).join("")}</ul></div>`
+    : "";
+
+  const check = firstTry === total ? `<div class="check" aria-label="Все верно">✓</div>` : "";
+
+  app.innerHTML = `
+    <div class="summary">
+      ${check}
+      <div>Проверка окончена</div>
+      <div class="big">${firstTry} из ${total}</div>
+      <div>решены сразу без ошибок</div>
+      <div class="todo">По группам:<ul>${rows}</ul></div>
+      <div class="closing">${closing}</div>
+      ${missedBlock}
+      <div class="actions"><button class="ghost" id="again">Новая проверка</button></div>
+    </div>`;
+  document.getElementById("again").addEventListener("click", restart);
+}
+
+function restart(){
+  init();
+  render();
+}
+
+init();
+render();
+</script>
+
+</body></html>
