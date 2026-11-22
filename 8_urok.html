@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Деление столбиком на двузначное число</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --card: #ffffff;
+    --text: #2b2b2b;
+    --muted: #7a7a7a;
+    --accent: #4a7fb5;
+    --ok: #5a9e6f;
+    --soft-err: #e8a25c;
+    --soft-err-bg: #fdf1e4;
+    --cell: 30px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  .settings {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    font-size: 14px; color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .settings label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .counter {
+    font-size: 15px; color: var(--muted);
+    margin-bottom: 16px; text-align: right;
+  }
+  .timer {
+    text-align: center; font-size: 14px;
+    color: var(--muted); min-height: 18px;
+  }
+
+  .grid-wrap { display: flex; justify-content: center; margin: 12px 0 16px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), var(--cell));
+    grid-auto-rows: var(--cell);
+    border: 1px solid #c9d8e8;
+    background-color: #fbfdff;
+    background-image:
+      linear-gradient(to right, #d6e4f2 1px, transparent 1px),
+      linear-gradient(to bottom, #d6e4f2 1px, transparent 1px);
+    background-size: var(--cell) var(--cell);
+  }
+  .grid input {
+    width: var(--cell); height: var(--cell);
+    border: none; background: transparent;
+    text-align: center; font-size: 18px; padding: 0;
+    color: var(--text);
+    caret-color: var(--accent);
+  }
+  .grid input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #fff; }
+  .grid input.quot { font-weight: 600; }
+  .grid input.err { background: var(--soft-err-bg); outline: 2px solid var(--soft-err); outline-offset: -2px; }
+  .grid input.reveal { color: var(--accent); font-weight: 600; }
+  .grid .fixed {
+    width: var(--cell); height: var(--cell);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 600;
+  }
+  .grid .blank { width: var(--cell); height: var(--cell); }
+  /* Вертикальная черта между делимым и делителем */
+  .grid .bar { border-right: 2px solid var(--text); }
+  /* Горизонтальная черта под делителем */
+  .grid .hline { border-bottom: 2px solid var(--text); }
+
+  .actions {
+    display: flex; justify-content: center; margin-bottom: 12px;
+  }
+  button {
+    font-size: 17px; padding: 10px 18px;
+    border: none; border-radius: 10px;
+    background: var(--accent); color: #fff;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .feedback {
+    min-height: 26px; text-align: center;
+    font-size: 16px; margin-top: 8px;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.soft { color: var(--soft-err); }
+  .hint {
+    min-height: 22px; text-align: center;
+    font-size: 15px; color: var(--muted); margin-top: 4px;
+  }
+  .start { text-align: center; }
+  .start input.name {
+    width: 100%; font-size: 20px; padding: 10px; text-align: center;
+    border: 2px solid #d5d5d5; border-radius: 10px; margin: 8px 0 16px;
+  }
+  .start input.name:focus { outline: none; border-color: var(--accent); }
+  .who { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
+  .done { text-align: center; padding: 30px 10px; }
+  .done .check { font-size: 56px; color: var(--ok); }
+  .done p { font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Деление столбиком на двузначное число</h1>
+
+  <div class="start" id="start">
+    <div class="sub">Введите имя ребёнка</div>
+    <input type="text" id="nameInput" class="name" maxlength="40" autocomplete="off">
+    <div><button id="startBtn">Начать</button></div>
+    <div class="feedback" id="startFb"></div>
+  </div>
+
+  <div id="game" style="display:none">
+    <div class="sub">Делим на двузначное число. Пишем весь столбик в клетках: вычитания, сносы, остаток и частное. Ответ принимается только если всё записано верно.</div>
+
+    <div class="settings">
+      <label><input type="checkbox" id="optTimer"> Режим «на время»</label>
+    </div>
+
+    <div class="counter" id="counter"></div>
+    <div class="timer" id="timer"></div>
+
+    <div class="grid-wrap">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="actions">
+      <button id="checkBtn">Проверить</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <div class="done" id="done" style="display:none">
+    <p class="who" id="doneWho"></p>
+    <div class="check" id="doneMark"></div>
+    <p id="doneTitle"></p>
+    <p id="doneText"></p>
+    <button id="restartBtn">Начать заново</button>
+  </div>
+</div>
+
+<script>
+  // Всего 15 примеров, все в столбике. Делитель двузначный (10–99), делимое до 999.
+  //  - 4 примера с однозначным частным (2–9);
+  //  - 3 примера с нулём в частном (10, 20, … 90);
+  //  - 8 примеров с двузначным частным без нуля (11–99).
+  // Остаток может быть любым от 0 до делитель − 1.
+  // Пройдено только если все 15 решены с первой попытки.
+  // Ошибка: подсказка. Вторая ошибка: правильный ответ, пример вернётся позже (до двух раз).
+  // Два примера подряд с ошибкой: перерыв и новые примеры.
+  const TOTAL = 15;
+  const MAX_REPEATS = 2;
+  const GRID_ROWS = 8;     // строка 0 — пример, строки 1–7 — место для записей
+
+  let items = [];
+  let index = 0;
+  let solved = 0;
+  let firstTry = 0;
+  let consecutiveFails = 0;
+  let wrongInRow = 0;
+  let itemDone = false;
+  let missed = [];
+  let playerName = "";
+  let startTime = 0;
+  let timerId = null;
+  let cellMap = {};
+  let gridCells = [];
+  let expected = {};
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Делитель и остаток для заданного частного: dividend = divisor * q + r, dividend ≤ 999.
+  function makeItem(q) {
+    // r < divisor, значит dividend < divisor * (q + 1) ≤ 1000.
+    const maxD = Math.min(99, Math.floor(1000 / (q + 1)));
+    const divisor = randInt(10, maxD);
+    const remainder = randInt(0, divisor - 1);
+    return { dividend: divisor * q + remainder, divisor, quotient: q, remainder };
+  }
+
+  function buildItems() {
+    const list = [];
+    for (let k = 0; k < 4; k++) list.push(makeItem(randInt(2, 9)));
+    for (let k = 0; k < 3; k++) list.push(makeItem(randInt(1, 9) * 10));
+    for (let k = 0; k < 8; k++) {
+      let q;
+      do { q = randInt(11, 99); } while (q % 10 === 0);
+      list.push(makeItem(q));
+    }
+    return shuffle(list).map(it => ({ ...it, repeat: 0 }));
+  }
+
+  // Правильная запись столбика.
+  // Строка 0: делимое слева, делитель справа от черты (делитель занимает две клетки).
+  // Для каждого шага: строка A (2s+1) — произведение, оканчивается под текущей цифрой;
+  //                   строка B (2s+2) — остаток, оканчивается под текущей цифрой,
+  //                                      справа от него сносится следующая цифра делимого.
+  // Строка A не пишется, если цифра частного равна 0.
+  // Частное пишется в строке 1, под делителем, слева направо.
+  function buildSolution(item) {
+    const d = String(item.dividend).split("").map(Number);
+    const n = d.length;
+    const D = item.divisor;
+    const exp = {};
+    const set = (r, c, ch) => { exp[`${r},${c}`] = String(ch); };
+    const writeRight = (r, endCol, str) => {
+      for (let i = 0; i < str.length; i++) {
+        set(r, endCol - (str.length - 1 - i), str[i]);
+      }
+    };
+
+    let rem = 0;
+    let started = false;
+    let step = 0;
+    let quotient = "";
+
+    for (let k = 0; k < n; k++) {
+      const cur = rem * 10 + d[k];
+      if (!started && cur < D && k < n - 1) {
+        rem = cur;
+        continue;
+      }
+      started = true;
+      const qd = Math.floor(cur / D);
+      const prod = qd * D;
+      const rowA = 1 + 2 * step;
+      const rowB = 2 + 2 * step;
+      quotient += String(qd);
+      if (qd > 0) writeRight(rowA, k, String(prod));
+      rem = cur - prod;
+      writeRight(rowB, k, String(rem));
+      if (k + 1 < n) set(rowB, k + 1, d[k + 1]);
+      step++;
+    }
+
+    quotient.split("").forEach((ch, i) => set(1, n + i, ch));
+    return exp;
+  }
+
+  // Тетрадка: делимое слева, справа от черты делитель, под ним черта и частное.
+  function renderNotebook(item) {
+    const digits = String(item.dividend).split("");
+    const divDigits = String(item.divisor).split("");
+    const n = digits.length;
+    const m = divDigits.length;
+    const cols = n + m;
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+    grid.style.setProperty("--cols", cols);
+    cellMap = {};
+    gridCells = [];
+
+    expected = buildSolution(item);
+
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < cols; c++) {
+        let el;
+        const classes = [];
+        if (c === n - 1) classes.push("bar");
+        if (r === 0 && c >= n) classes.push("hline");
+
+        if (r === 0 && c < n) {
+          el = document.createElement("div");
+          el.className = "fixed";
+          el.textContent = digits[c];
+        } else if (r === 0) {
+          el = document.createElement("div");
+          el.className = "fixed";
+          el.textContent = divDigits[c - n];
+        } else {
+          el = document.createElement("input");
+          el.type = "text";
+          el.maxLength = 1;
+          el.inputMode = "numeric";
+          el.autocomplete = "off";
+          const key = `${r},${c}`;
+          el.dataset.idx = gridCells.length;
+          el.addEventListener("input", () => {
+            el.value = el.value.replace(/[^0-9]/g, "");
+            el.classList.remove("err");
+            if (el.value !== "") focusCell(Number(el.dataset.idx) + 1);
+          });
+          el.addEventListener("keydown", e => {
+            if (e.key === "Backspace" && el.value === "") {
+              e.preventDefault();
+              focusCell(Number(el.dataset.idx) - 1);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              check();
+            }
+          });
+          cellMap[key] = el;
+          gridCells.push(el);
+          if (r === 1 && c >= n) el.classList.add("quot");
+        }
+        classes.forEach(cl => el.classList.add(cl));
+        grid.appendChild(el);
+      }
+    }
+  }
+
+  function focusCell(i) {
+    if (i >= 0 && i < gridCells.length) gridCells[i].focus();
+  }
+
+  function showItem() {
+    const item = items[index];
+    itemDone = false;
+    wrongInRow = 0;
+    document.getElementById("counter").textContent = `Решено ${solved} из ${TOTAL}`;
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("feedback").className = "feedback";
+    document.getElementById("hint").textContent = "";
+    const btn = document.getElementById("checkBtn");
+    btn.textContent = "Проверить";
+    btn.disabled = false;
+    renderNotebook(item);
+    focusCell(0);
+    startTime = Date.now();
+  }
+
+  // Сверяем каждую клетку решения с правильной записью.
+  function checkNotebook() {
+    const wrong = [];
+    Object.keys(cellMap).forEach(key => {
+      const el = cellMap[key];
+      const want = expected[key] || "";
+      el.classList.remove("err");
+      if (el.value !== want) wrong.push(el);
+    });
+    return wrong;
+  }
+
+  function hintText(item) {
+    return `возьми первые цифры делимого, которые не меньше ${item.divisor}. Подбери, сколько раз ${item.divisor} в них помещается, пиши под ними произведение, потом сноси следующую цифру.`;
+  }
+
+  function expressionText(item) {
+    return `${item.dividend} : ${item.divisor} = ${item.quotient}` +
+      (item.remainder ? `, остаток ${item.remainder}` : "");
+  }
+
+  // Вторая ошибка: показываем правильную запись.
+  function revealAnswer() {
+    Object.keys(cellMap).forEach(key => {
+      const el = cellMap[key];
+      const want = expected[key] || "";
+      if (el.value !== want) {
+        el.value = want;
+        el.classList.remove("err");
+        el.classList.add("reveal");
+      }
+      el.disabled = true;
+    });
+  }
+
+  function check() {
+    if (itemDone) { nextItem(); return; }
+    const fb = document.getElementById("feedback");
+    const hint = document.getElementById("hint");
+    const item = items[index];
+
+    const anyWritten = Object.values(cellMap).some(el => el.value !== "");
+    if (!anyWritten) {
+      fb.textContent = "Запишите решение в клетках";
+      fb.className = "feedback soft";
+      return;
+    }
+
+    const wrong = checkNotebook();
+    if (wrong.length === 0) { onCorrect(); return; }
+
+    wrongInRow++;
+    wrong.forEach(el => el.classList.add("err"));
+    if (wrongInRow < 2) {
+      fb.textContent = "Есть ошибка в записи. Проверьте подсвеченные клетки";
+      fb.className = "feedback soft";
+      hint.textContent = "Подсказка: " + hintText(item);
+      wrong[0].focus();
+      return;
+    }
+    revealAnswer();
+    onFail(item);
+  }
+
+  function onCorrect() {
+    const item = items[index];
+    itemDone = true;
+    if (item.repeat === 0) {
+      solved++;
+      if (wrongInRow === 0) firstTry++;
+    }
+    consecutiveFails = wrongInRow > 0 ? consecutiveFails + 1 : 0;
+    const fb = document.getElementById("feedback");
+    fb.textContent = "Верно";
+    fb.className = "feedback ok";
+    document.getElementById("hint").textContent = "";
+    Object.values(cellMap).forEach(el => {
+      el.classList.remove("err");
+      el.disabled = true;
+    });
+    document.getElementById("checkBtn").textContent = "Дальше";
+  }
+
+  function onFail(item) {
+    itemDone = true;
+    if (item.repeat === 0) solved++;
+    consecutiveFails++;
+    const text = expressionText(item);
+    if (!missed.includes(text)) missed.push(text);
+    let tail = "";
+    if (item.repeat < MAX_REPEATS) {
+      items.push({ ...item, repeat: item.repeat + 1 });
+      tail = " Этот пример вернётся позже.";
+    }
+    const fb = document.getElementById("feedback");
+    fb.textContent = `Правильный ответ: ${text}.${tail}`;
+    fb.className = "feedback soft";
+    document.getElementById("checkBtn").textContent = "Дальше";
+  }
+
+  function nextItem() {
+    index++;
+    if (consecutiveFails >= 2 && index < items.length) {
+      renderBreak();
+      return;
+    }
+    if (index >= items.length) {
+      finish();
+    } else {
+      showItem();
+    }
+  }
+
+  function showDone(mark, title, text, again) {
+    document.getElementById("game").style.display = "none";
+    document.getElementById("doneWho").textContent =
+      `Ребёнок: ${playerName} · ${new Date().toLocaleDateString("ru-RU")}`;
+    document.getElementById("doneMark").textContent = mark;
+    document.getElementById("doneTitle").textContent = title;
+    document.getElementById("doneText").textContent = text;
+    document.getElementById("restartBtn").textContent = again;
+    document.getElementById("done").style.display = "block";
+    stopTimer();
+  }
+
+  function renderBreak() {
+    showDone("", "Небольшой перерыв",
+      "Два примера подряд дались трудно. Это нормально. Отдохни минуту и начни заново с новыми примерами.",
+      "Начать заново");
+  }
+
+  function finish() {
+    const pass = firstTry === TOTAL;
+    let text = `Сразу решено: ${firstTry} из ${TOTAL}. `;
+    text += pass
+      ? "Все примеры решены без ошибок. Отлично!"
+      : "Нужно решить все примеры без ошибок. Начнём заново с новыми примерами.";
+    if (!pass && missed.length) text += " Повторить: " + missed.join("; ") + ".";
+    showDone(pass ? "✓" : "", pass ? `Пройдено: ${TOTAL} из ${TOTAL}` : "Пока не пройдено",
+      text, pass ? "Новая проверка" : "Начать заново");
+  }
+
+  function startGame() {
+    const v = document.getElementById("nameInput").value.trim();
+    const fb = document.getElementById("startFb");
+    if (!v) {
+      fb.textContent = "Напиши имя";
+      fb.className = "feedback soft";
+      return;
+    }
+    playerName = v;
+    document.getElementById("start").style.display = "none";
+    restart();
+  }
+
+  function restart() {
+    items = buildItems();
+    index = 0;
+    solved = 0;
+    firstTry = 0;
+    consecutiveFails = 0;
+    missed = [];
+    document.getElementById("done").style.display = "none";
+    document.getElementById("game").style.display = "block";
+    showItem();
+    updateTimerMode();
+  }
+
+  function updateTimerMode() {
+    stopTimer();
+    if (document.getElementById("optTimer").checked) {
+      timerId = setInterval(() => {
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById("timer").textContent = `Время: ${sec} с`;
+      }, 500);
+    } else {
+      document.getElementById("timer").textContent = "";
+    }
+  }
+
+  function stopTimer() {
+    if (timerId) clearInterval(timerId);
+    timerId = null;
+  }
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("nameInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") startGame();
+  });
+  document.getElementById("checkBtn").addEventListener("click", check);
+  document.getElementById("optTimer").addEventListener("change", updateTimerMode);
+  document.getElementById("restartBtn").addEventListener("click", restart);
+
+  document.getElementById("nameInput").focus();
+</script>
+</body>
+</html>

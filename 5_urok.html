@@ -1,0 +1,277 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Умножение в столбик</title>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --fg:#1f2430; --muted:#5f6675;
+  --accent:#2f6fdb; --accent-fg:#ffffff; --ok:#17803f; --bad:#d9822b;
+  --line:#cfcabd; --dot:#d9d5ca; --okbg:#e3f3e8; --badbg:#fdeedb; --focus:#dce8fb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171f; --card:#1d222d; --fg:#eef0f5; --muted:#9aa2b2;
+    --accent:#6ea2ff; --accent-fg:#0d1220; --ok:#4cd17f; --bad:#ffb366;
+    --line:#3a4254; --dot:#3a4254; --okbg:#1f3328; --badbg:#4a3018; --focus:#26324a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171f; --card:#1d222d; --fg:#eef0f5; --muted:#9aa2b2;
+  --accent:#6ea2ff; --accent-fg:#0d1220; --ok:#4cd17f; --bad:#ffb366;
+  --line:#3a4254; --dot:#3a4254; --okbg:#1f3328; --badbg:#4a3018; --focus:#26324a; color-scheme:dark;
+}
+body{
+  background:var(--bg); color:var(--fg); margin:0; padding-block:24px;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:420px;margin:0 auto}
+h1{font-size:22px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px;margin-bottom:12px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;justify-content:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dot)}
+.dot.done{background:var(--accent)}
+.dot.now{outline:2px solid var(--accent);outline-offset:2px}
+.task{font-size:14px;color:var(--muted);text-align:center;margin:8px 0 4px}
+.sheet{margin:8px auto 0;border-collapse:collapse}
+.sheet td{width:50px;height:50px;text-align:center;font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;padding:0;border:1px solid var(--line)}
+.sheet td.sign{width:30px;border:none;font-size:22px;color:var(--muted)}
+.sheet td.none{border:none}
+.sheet td.top{border-top:2px solid var(--fg)}
+.sheet input{width:100%;height:100%;box-sizing:border-box;border:0;background:transparent;text-align:center;font:inherit;color:var(--fg);outline:none;padding:0;caret-color:var(--accent)}
+.sheet input:focus{background:var(--focus)}
+.sheet input:disabled{opacity:1;-webkit-text-fill-color:var(--fg)}
+.sheet td.ok{background:var(--okbg)}
+.sheet td.bad{background:var(--badbg)}
+.sheet td.reveal{color:var(--accent)}
+.row{display:flex;gap:10px;margin-top:18px;justify-content:center}
+button.primary{font:inherit;font-weight:600;border-radius:10px;padding:12px 18px;cursor:pointer;background:var(--accent);color:var(--accent-fg);border:0}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.fb{min-height:44px;margin-top:14px;text-align:center;font-size:16px}
+.fb.ok{color:var(--ok);font-weight:600}
+.fb.bad{color:var(--bad);font-weight:600}
+.start{text-align:center}
+.name{width:100%;font:inherit;font-size:20px;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);text-align:center;margin:8px 0 16px}
+.who{font-size:14px;color:var(--muted);margin-bottom:12px}
+.summary{text-align:center}
+.summary .check{width:64px;height:64px;margin:0 auto 8px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;font-weight:700;line-height:64px}
+.summary .big{font-size:48px;font-weight:700;font-variant-numeric:tabular-nums;margin:8px 0}
+.summary .todo{text-align:left;margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.summary .todo ul{margin:8px 0 0;padding-left:20px;font-variant-numeric:tabular-nums}
+.summary .closing{margin-top:16px;font-weight:600;font-size:18px}
+.summary .actions{display:flex;justify-content:center;margin-top:16px}
+</style></head><body>
+<div class="wrap">
+  <h1>Умножение в столбик</h1>
+  <div class="card" id="app"></div>
+</div>
+<script>
+// Многозначное число умножаем на двузначное без нуля в множителе.
+// Строка 1 — умножение на единицы, строка 2 — на десятки со сдвигом и нулём в конце, затем сумма.
+// Перенос пишется на бумаге. Каждая клетка записанного столбика проверяется.
+const TOTAL = 15;
+const MAX_REPEATS = 2;
+const TODAY = new Date().toLocaleDateString("ru-RU");
+const app = document.getElementById("app");
+let playerName = "", queue = [], qi = 0, total = TOTAL;
+let firstTry = 0, consecutiveFails = 0, wrongChecks = 0, streak = 0;
+let solved = false, missed = [], resolved = new Set();
+const W = 6; // знак + до 5 разрядов
+
+function rnd(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
+function shuffle(arr){
+  for (let i = arr.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+function who(){ return `<div class="who">Ребёнок: ${playerName} · ${TODAY}</div>`; }
+
+// Ячейки: null — пусто; {g} — дано; {s} — знак; {e} — клетка ребёнка; t:1 — линия сверху
+function cellHtml(c){
+  if (c === null) return `<td class="none"></td>`;
+  if (c.s !== undefined) return `<td class="sign">${c.s}</td>`;
+  if (c.g !== undefined) return `<td class="${c.t ? "top" : ""}">${c.g}</td>`;
+  return `<td class="${c.t ? "top" : ""}"><input maxlength="1" inputmode="numeric" autocomplete="off"></td>`;
+}
+
+function digitsRow(s, width, sign, kind){
+  const cells = [{ s: sign }];
+  for (let i = 0; i < width - 1 - s.length; i++) cells.push(null);
+  for (const ch of s) cells.push(kind === "e" ? { e: ch } : { g: ch });
+  return cells;
+}
+function withTop(cells){ return cells.map(c => (c && c.e !== undefined) ? { ...c, t: 1 } : c); }
+
+function build(a, b){
+  const u = b % 10, d = Math.floor(b / 10), P = a * b;
+  const p2 = digitsRow(String(a * d) + "0", W, "", "e");
+  p2[W - 1] = { g: "0" };
+  const grid = [
+    digitsRow(String(a), W, "", "g"),
+    digitsRow(String(b), W, "×", "g"),
+    withTop(digitsRow(String(a * u), W, "", "e")),
+    p2,
+    withTop(digitsRow(String(P), W, "", "e"))
+  ];
+  return {
+    task: "Умножь столбиком. Все клетки проверяются",
+    grid,
+    hint: `Сначала умножь ${a} на ${u} и пиши результат в первую строку (перенос на бумаге). Потом на ${d}, со сдвигом влево и нулём в конце. Затем сложи.`,
+    answer: `${a} × ${b} = ${P}`
+  };
+}
+
+function makeTasks(){
+  const used = new Set(), out = [];
+  while (out.length < TOTAL){
+    const a = rnd(100, 999), b = rnd(2, 9) * 10 + rnd(2, 9);
+    const key = a + "x" + b;
+    if (used.has(key)) continue;
+    used.add(key);
+    out.push(build(a, b));
+  }
+  return shuffle(out);
+}
+
+function startScreen(){
+  app.innerHTML = `
+    <div class="start">
+      <div class="who">Введите имя ребёнка</div>
+      <input type="text" id="nm" class="name" maxlength="40" autocomplete="off">
+      <div class="row"><button class="primary" id="go">Начать</button></div>
+      <div class="fb" id="fb" aria-live="polite"></div>
+    </div>`;
+  const nm = document.getElementById("nm"), fb = document.getElementById("fb");
+  nm.focus();
+  const go = () => {
+    const v = nm.value.trim();
+    if (!v){ fb.className = "fb bad"; fb.textContent = "Напиши имя."; return; }
+    playerName = v; restart();
+  };
+  document.getElementById("go").addEventListener("click", go);
+  nm.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+}
+
+function restart(){
+  const tasks = makeTasks();
+  total = tasks.length;
+  queue = tasks.map((t, i) => ({ ...t, orig: i, repeat: 0 }));
+  qi = 0; firstTry = 0; consecutiveFails = 0; wrongChecks = 0; streak = 0;
+  solved = false; missed = []; resolved = new Set();
+  render();
+}
+function render(){ if (qi < queue.length) renderTask(); else renderSummary(); }
+function next(){
+  qi++; wrongChecks = 0; solved = false;
+  if (consecutiveFails >= 2 && qi < queue.length) renderBreak(); else render();
+}
+
+function renderBreak(){
+  app.innerHTML = `
+    <div class="summary">${who()}
+      <div class="closing">Небольшой перерыв</div>
+      <div>Два примера подряд дались трудно. Это нормально. Отдохни минуту и начни заново с новыми примерами.</div>
+      <div class="actions"><button class="primary" id="again">Начать заново</button></div>
+    </div>`;
+  document.getElementById("again").addEventListener("click", restart);
+}
+
+function renderSummary(){
+  const pass = firstTry === total;
+  const missedBlock = missed.length
+    ? `<div class="todo">Повторить:<ul>${missed.map(m => `<li>${m}</li>`).join("")}</ul></div>` : "";
+  app.innerHTML = `
+    <div class="summary">${who()}
+      ${pass ? `<div class="check" aria-label="Пройдено">✓</div>` : ""}
+      <div class="closing">${pass ? `Пройдено: ${total} из ${total} без ошибок` : "Пока не пройдено"}</div>
+      <div class="big">${firstTry} из ${total}</div>
+      <div>${pass ? "все примеры решены сразу" : "нужно решить все примеры без ошибок. Начнём заново с новыми примерами."}</div>
+      ${missedBlock}
+      <div class="actions"><button class="primary" id="again">${pass ? "Новая проверка" : "Начать заново"}</button></div>
+    </div>`;
+  document.getElementById("again").addEventListener("click", restart);
+}
+
+function renderTask(){
+  const p = queue[qi];
+  const label = p.repeat === 0 ? `Пример ${p.orig + 1} из ${total}` : `Повторим: пример ${p.orig + 1} из ${total}`;
+  const dots = Array.from({ length: total }, (_, k) =>
+    `<span class="dot ${resolved.has(k) ? "done" : ""} ${k === p.orig ? "now" : ""}"></span>`).join("");
+  const streakTxt = streak >= 2 ? ` · подряд: ${streak}` : "";
+  app.innerHTML = `
+    <div class="meta"><span>${label}</span><span>Верно сразу: ${firstTry}${streakTxt}</span></div>
+    <div class="dots">${dots}</div>
+    <div class="task">${p.task}</div>
+    <table class="sheet">${p.grid.map(r => `<tr>${r.map(cellHtml).join("")}</tr>`).join("")}</table>
+    <div class="row"><button class="primary" id="check">Проверить</button></div>
+    <div class="fb" id="fb" aria-live="polite"></div>`;
+
+  const inputs = [...app.querySelectorAll("input")];
+  const exps = [];
+  p.grid.forEach(r => r.forEach(c => { if (c && c.e !== undefined) exps.push(String(c.e)); }));
+  const btn = document.getElementById("check"), fb = document.getElementById("fb");
+  const rowOf = el => el.closest("tr");
+  const firstRow = inputs.filter(i => rowOf(i) === rowOf(inputs[0]));
+  firstRow[firstRow.length - 1].focus();
+
+  const onCheck = () => {
+    if (solved){ next(); return; }
+    const empty = inputs.findIndex(i => !i.disabled && i.value === "");
+    if (empty !== -1){
+      fb.className = "fb bad"; fb.textContent = "Заполни все пустые клетки.";
+      inputs[empty].focus(); return;
+    }
+    const wrong = [];
+    inputs.forEach((inp, k) => {
+      const td = inp.parentElement;
+      if (inp.value === exps[k]){ inp.disabled = true; td.classList.remove("bad"); td.classList.add("ok"); }
+      else { wrong.push(k); td.classList.remove("ok"); td.classList.add("bad"); }
+    });
+    if (wrong.length === 0){
+      solved = true;
+      if (p.repeat === 0 && wrongChecks === 0) firstTry++;
+      consecutiveFails = wrongChecks > 0 ? consecutiveFails + 1 : 0;
+      streak++; resolved.add(p.orig);
+      fb.className = "fb ok"; fb.textContent = "Верно!";
+      btn.textContent = "Дальше"; btn.focus(); return;
+    }
+    wrongChecks++; streak = 0;
+    if (wrongChecks < 2){
+      inputs[wrong[0]].focus();
+      fb.className = "fb bad";
+      fb.textContent = "Есть ошибка, она выделена. Исправь выделенные клетки. Подсказка: " + p.hint;
+      return;
+    }
+    solved = true; consecutiveFails++; resolved.add(p.orig);
+    wrong.forEach(k => {
+      const inp = inputs[k];
+      inp.value = exps[k]; inp.disabled = true;
+      inp.parentElement.classList.remove("bad");
+      inp.parentElement.classList.add("reveal");
+    });
+    if (!missed.includes(p.answer)) missed.push(p.answer);
+    let tail = "";
+    if (p.repeat < MAX_REPEATS){ queue.push({ ...p, repeat: p.repeat + 1 }); tail = " Этот пример вернётся позже."; }
+    fb.className = "fb bad";
+    fb.textContent = `Правильный ответ: ${p.answer}.${tail}`;
+    btn.textContent = "Дальше"; btn.focus();
+  };
+
+  btn.addEventListener("click", onCheck);
+  inputs.forEach((inp, k) => {
+    inp.addEventListener("input", () => {
+      inp.value = inp.value.replace(/\D/g, "").slice(-1);
+      inp.parentElement.classList.remove("bad");
+      const prev = inputs[k - 1];
+      if (inp.value && prev && !prev.disabled && rowOf(prev) === rowOf(inp)) prev.focus();
+    });
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") { onCheck(); return; }
+      if (e.key === "Backspace" && !inp.value){
+        const nx = inputs[k + 1];
+        if (nx && rowOf(nx) === rowOf(inp)) nx.focus();
+      }
+    });
+  });
+}
+
+startScreen();
+</script>
+</body></html>
